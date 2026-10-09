@@ -251,8 +251,8 @@ with tab2:
     
     st.subheader(f"Le Bilan dans {horizon} ans")
     col_res1, col_res2, col_res3 = st.columns(3)
-    col_res1.metric(f"Richesse si on CONSERVE", f"{richesse_totale_inaction:,.0f} $")
-    col_res2.metric(f"Richesse si on VEND", f"{richesse_totale_action:,.0f} $")
+    col_res1.metric(f"Capital disponible si on CONSERVE", f"{richesse_totale_inaction:,.0f} $")
+    col_res2.metric(f"Capital disponible si on VEND", f"{richesse_totale_action:,.0f} $")
     
     if cout_inaction > 0:
         col_res3.metric(f"Perte d'Opportunité", f"- {cout_inaction:,.0f} $", delta="Vous laissez de l'argent sur la table", delta_color="inverse")
@@ -260,6 +260,7 @@ with tab2:
     else:
         col_res3.metric(f"Avantage de Conserver", f"+ {abs(cout_inaction):,.0f} $", delta="L'immeuble est le meilleur choix", delta_color="normal")
         st.success(f"✅ **Interprétation :** Vendre cet immeuble serait une erreur. À cause du coût élevé de sortie (impôts) et de sa bonne performance interne, le conserver vous rapporte **{abs(cout_inaction):,.0f} $** de plus que de le transférer en bourse.")
+
 # --- ONGLET 3 : MATRICE IMMOBILIÈRE DÉTAILLÉE ---
 with tab3:
     st.header("Base de données du portefeuille")
