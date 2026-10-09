@@ -236,7 +236,7 @@ with tab2:
         st.subheader(f"📊 Profil actuel de l'immeuble : {immeuble_choisi}")
         
         # Couleur du statut
-        couleur_statut = "🔴" if actif['Statut'] == 'Alerte (Sous-Performance)' else "🟢" if actif['Statut'] == 'Performant (Core)' else "🟡"
+        couleur_statut = "🔴" if actif['Statut'] == 'Alerte (Sous-Performance)' else "✅" if actif['Statut'] == 'Performant (Core)' else "🟡"
         
         col_met1, col_met2, col_met3, col_met4 = st.columns(4)
         col_met1.metric("Valeur Marchande", f"{actif['Valeur_Marchande']:,.0f} $")
