@@ -3,17 +3,24 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import io
-import yfinance as yf 
+import yfinance as yf
+
+# --- CONFIGURATION DE LA PAGE ---
+st.set_page_config(page_title="Tableau de Bord Stratégique FO", layout="wide", page_icon="🏢")
+
+# --- PARAMÈTRES GLOBAUX ---
+TAUX_SANS_RISQUE = 0.04  # 4.00%
+RENDEMENT_FPI_CIBLE_DEFAUT = 0.08  # 8.00% par défaut si l'API boursière échoue
 
 # --- MOTEUR BOURSIER EN TEMPS RÉEL (YAHOO FINANCE) ---
 @st.cache_data(ttl=86400)  # Met en cache pour 24h
 def get_real_index_cagr(ticker="XRE.TO", annees_historique=5):
     try:
-        # Télécharge l'historique de l'indice (la fonction history ajuste automatiquement pour les dividendes)
+        # Télécharge l'historique de l'indice
         historique = yf.Ticker(ticker).history(period=f"{annees_historique}y")
         
         if historique.empty:
-            return 0.08  # Rendement par défaut de 8% si l'API échoue
+            return RENDEMENT_FPI_CIBLE_DEFAUT
             
         prix_initial = historique['Close'].iloc[0]
         prix_final = historique['Close'].iloc[-1]
@@ -22,14 +29,7 @@ def get_real_index_cagr(ticker="XRE.TO", annees_historique=5):
         tcac = (prix_final / prix_initial) ** (1 / annees_historique) - 1
         return tcac
     except Exception:
-        return 0.08  # Sécurité en cas d'erreur de connexion
-
-# --- CONFIGURATION DE LA PAGE ---
-st.set_page_config(page_title="Tableau de Bord Stratégique FO", layout="wide", page_icon="🏢")
-
-# --- PARAMÈTRES GLOBAUX ---
-TAUX_SANS_RISQUE = 0.04  # 4.00%
-RENDEMENT_FPI_CIBLE = 0.08  # 8.00%
+        return RENDEMENT_FPI_CIBLE_DEFAUT
 
 # --- GÉNÉRATEUR DE GABARIT (TEMPLATE) ---
 @st.cache_data
@@ -133,7 +133,11 @@ with tab1:
     st.header("Indicateurs de Marché Actuels")
     col1, col2, col3 = st.columns(3)
     col1.metric("Taux Sans Risque (Cible)", f"{TAUX_SANS_RISQUE*100:.2f} %")
-    col2.metric("Indice Immo Cible (FPI)", f"{RENDEMENT_FPI_CIBLE*100:.2f} %")
+    
+    # Appel de l'API pour afficher le rendement de l'indice immobilier en temps réel
+    rendement_actuel_fpi = get_real_index_cagr("XRE.TO", 5)
+    col2.metric("Indice Immo Cible (XRE.TO - 5 ans)", f"{rendement_actuel_fpi*100:.2f} %")
+    
     col3.metric("Valeur Nette du Portefeuille", f"{df['Equite_Nette'].sum():,.0f} $")
     
     st.divider()
@@ -170,17 +174,30 @@ with tab2:
         if not actifs_performants.empty:
             roe_interne_moyen = actifs_performants['ROE'].mean()
         else:
-            roe_interne_moyen = RENDEMENT_FPI_CIBLE # Par défaut si aucun immeuble n'est performant
+            roe_interne_moyen = RENDEMENT_FPI_CIBLE_DEFAUT # Par défaut si aucun immeuble n'est performant
+        
+        # Menu déroulant pour choisir l'indice de marché réel
+        ticker_choisi = st.selectbox(
+            "Choix de l'Indice de Marché Externe :",
+            [
+                "XRE.TO (Immobilier Canadien FPI)", 
+                "VFV.TO (S&P 500 en CAD)", 
+                "XIU.TO (Bourse Canadienne TSX 60)"
+            ]
+        )
+        symbole = ticker_choisi.split(" ")[0]
+        rendement_reel_externe = get_real_index_cagr(ticker=symbole, annees_historique=5)
         
         # Sélection de la stratégie par l'utilisateur
         strategie_cible = st.radio(
             "Stratégie de Réallocation :",
-            ["Marché Externe (ex: Indice FPI Boursier)", "Force Interne (Top Performers du Portefeuille)"]
+            ["Marché Externe (Indice en Direct)", "Force Interne (Top Performers du Portefeuille)"]
         )
         
         # Ajustement du rendement cible selon la sélection
-        if strategie_cible == "Marché Externe (ex: Indice FPI Boursier)":
-            rendement_cible = st.number_input("Rendement Cible Externe (%)", value=RENDEMENT_FPI_CIBLE*100) / 100
+        if strategie_cible == "Marché Externe (Indice en Direct)":
+            st.info(f"📈 Le rendement historique composé sur 5 ans de **{symbole}** est de **{rendement_reel_externe*100:.2f} %** (Dividendes inclus).")
+            rendement_cible = st.number_input("Rendement Cible Externe (%)", value=rendement_reel_externe*100, step=0.5) / 100
         else:
             if not actifs_performants.empty:
                 st.info(f"💡 Le ROE moyen actuel de vos immeubles 'Performants' est de **{roe_interne_moyen*100:.2f} %**.")
@@ -212,7 +229,7 @@ with tab2:
         val_action = capital_net_reinvesti * ((1 + rendement_cible) ** annees)
         
         # Graphique Plotly
-        nom_legende_action = "Réallocation (Indice Externe)" if strategie_cible == "Marché Externe (ex: Indice FPI Boursier)" else "Réallocation (Indice Interne)"
+        nom_legende_action = "Réallocation (Indice Externe)" if strategie_cible == "Marché Externe (Indice en Direct)" else "Réallocation (Indice Interne)"
         
         fig_df = pd.DataFrame({
             'Année': annees, 
