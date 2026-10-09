@@ -68,14 +68,14 @@ def process_data(file, filename):
 # ==========================================
 # INTERFACE UTILISATEUR & BARRE LATÉRALE
 # ==========================================
-st.title("🏛️ Tableau de Bord Stratégique - Immobilier & Allocation")
+st.title(" Tableau de Bord - Immobilier & Allocation")
 
 st.sidebar.header("📁 Injecter vos données")
 st.sidebar.markdown("*Mode Confidentiel : Les données sont traitées dans la RAM de votre navigateur et détruites à la fermeture.*")
 
 # Bouton de téléchargement du gabarit
 st.sidebar.download_button(
-    label="📥 Télécharger le Gabarit (CSV)",
+    label="📥 Télécharger le Gabarit à remplir (CSV)",
     data=get_template_csv(),
     file_name="Gabarit_Portefeuille_Immo.csv",
     mime="text/csv"
@@ -130,7 +130,7 @@ with tab1:
 
 # --- ONGLET 2 : OUTIL DE DÉCISION (COÛT DE L'INACTION) ---
 with tab2:
-    st.header("Simulateur : Le Coût de l'Inaction (Avec Prise de Valeur)")
+    st.header("Évaluation du coût de l'inaction (Avec Prise de Valeur)")
     st.write("Évaluez si la spéculation (prise de valeur estimée) justifie de conserver un actif sous-performant en trésorerie.")
     
     col_params, col_graph = st.columns([1, 2])
@@ -143,9 +143,34 @@ with tab2:
         horizon = st.slider("Horizon Temporel (Années)", min_value=1, max_value=20, value=5)
         
         st.markdown("---")
-        st.markdown("**Hypothèses de Marché**")
+        st.markdown("**1. Choix du Benchmark (L'Indice de Comparaison)**")
+        
+        # Calcul de l'Indice Interne (Moyenne du ROE des actifs 'Performants')
+        actifs_performants = df[df['Statut'] == 'Performant (Core)']
+        if not actifs_performants.empty:
+            roe_interne_moyen = actifs_performants['ROE'].mean()
+        else:
+            roe_interne_moyen = RENDEMENT_FPI_CIBLE # Par défaut si aucun immeuble n'est performant
+        
+        # Sélection de la stratégie par l'utilisateur
+        strategie_cible = st.radio(
+            "Stratégie de Réallocation :",
+            ["Marché Externe (ex: Indice FPI Boursier)", "Force Interne (Top Performers du Portefeuille)"]
+        )
+        
+        # Ajustement du rendement cible selon la sélection
+        if strategie_cible == "Marché Externe (ex: Indice FPI Boursier)":
+            rendement_cible = st.number_input("Rendement Cible Externe (%)", value=RENDEMENT_FPI_CIBLE*100) / 100
+        else:
+            if not actifs_performants.empty:
+                st.info(f"💡 Le ROE moyen actuel de vos immeubles 'Performants' est de **{roe_interne_moyen*100:.2f} %**.")
+            else:
+                st.warning("Aucun immeuble n'est classé 'Performant'. Utilisation du taux externe par défaut.")
+            rendement_cible = roe_interne_moyen
+            
+        st.markdown("---")
+        st.markdown("**2. Hypothèses de Marché**")
         appreciation_annuelle = st.slider("Prise de valeur annuelle estimée de l'immeuble (%)", min_value=-5.0, max_value=15.0, value=2.0, step=0.5) / 100
-        rendement_cible = st.number_input("Rendement Cible (Marché/Indice alternatif) %", value=RENDEMENT_FPI_CIBLE*100) / 100
         frais_sortie = st.slider("Frottement Fiscal / Frais de Vente (%)", min_value=0.0, max_value=30.0, value=15.0, step=1.0) / 100
         
     with col_graph:
@@ -162,13 +187,20 @@ with tab2:
         equite_future = valeur_future_immeuble - dette_actuelle
         val_inaction = equite_future + (cash_flow_annuel * annees)
         
-        # Trajectoire 2 : Vente immédiate et Réallocation (Action)
+        # Trajectoire 2 : Vente immédiate et Réallocation (Action) selon le Benchmark choisi
         capital_net_reinvesti = equite_initiale * (1 - frais_sortie)
         val_action = capital_net_reinvesti * ((1 + rendement_cible) ** annees)
         
         # Graphique Plotly
-        fig_df = pd.DataFrame({'Année': annees, 'Statu Quo (Immeuble conservé)': val_inaction, 'Réallocation (Indice Boursier)': val_action})
-        fig = px.line(fig_df, x='Année', y=['Statu Quo (Immeuble conservé)', 'Réallocation (Indice Boursier)'],
+        nom_legende_action = "Réallocation (Indice Externe)" if strategie_cible == "Marché Externe (ex: Indice FPI Boursier)" else "Réallocation (Indice Interne)"
+        
+        fig_df = pd.DataFrame({
+            'Année': annees, 
+            'Statu Quo (Immeuble conservé)': val_inaction, 
+            nom_legende_action: val_action
+        })
+        
+        fig = px.line(fig_df, x='Année', y=['Statu Quo (Immeuble conservé)', nom_legende_action],
                       labels={'value': 'Richesse Nette Totale ($)', 'variable': 'Stratégie'},
                       title=f"Projection de Richesse sur {horizon} ans - {immeuble_choisi}")
         
@@ -188,9 +220,9 @@ with tab2:
                     delta=f"{-cout_inaction:,.0f} $", delta_color="normal")
     
     if cout_inaction > 0:
-        st.warning(f"⚠️ **Vente Stratégique Recommandée :** Même avec une prise de valeur projetée de {appreciation_annuelle*100}%, le marché alternatif surperforme l'immeuble de **{cout_inaction:,.0f} $** sur {horizon} ans après impôts. L'actif détruit de l'opportunité.")
+        st.warning(f"⚠️ **Vente Stratégique Recommandée :** Même avec une prise de valeur projetée de {appreciation_annuelle*100}%, le benchmark choisi ({strategie_cible}) surperforme l'immeuble de **{cout_inaction:,.0f} $** sur {horizon} ans après impôts. L'actif détruit de l'opportunité.")
     else:
-        st.success(f"✅ **Conservation Recommandée :** Grâce à la prise de valeur projetée de {appreciation_annuelle*100}% et au coût élevé du frottement fiscal de sortie, conserver l'immeuble génère **{abs(cout_inaction):,.0f} $** de plus que le marché sur {horizon} ans.")
+        st.success(f"✅ **Conservation Recommandée :** Grâce à la prise de valeur projetée de {appreciation_annuelle*100}% et au coût élevé du frottement fiscal de sortie, conserver l'immeuble génère **{abs(cout_inaction):,.0f} $** de plus que le benchmark sur {horizon} ans.")
 
 # --- ONGLET 3 : MATRICE IMMOBILIÈRE DÉTAILLÉE ---
 with tab3:
@@ -217,5 +249,5 @@ with tab4:
     *   **ROE (Return on Equity - Rendement sur l'Équité) :** *Formule : Flux de trésorerie net annuel / Équité Nette.* Mesure l'efficacité du capital "bloqué" dans la propriété.
     *   **Coût de l'Inaction :** La différence financière entre maintenir le statu quo sur un actif sous-performant et réallouer ce capital net vers un indice de marché (Benchmark), calculée sur un horizon donné.
     *   **Frottement Fiscal (Récupération d'amortissement) :** L'impôt payable à la vente d'un immeuble en raison des déductions pour amortissement (DPA) réclamées les années antérieures. Cet impôt réduit le produit net de la vente disponible pour réinvestissement.
-    *   **Équité Nette (Équité Dormante) :** La valeur marchande actuelle de l'immeuble moins le solde hypothécaire. C'est le capital réel du Family Office exposé au risque sur cet actif.
+    *   **Équité Nette (Équité Dormante) :** La valeur marchande actuelle de l'immeuble moins le solde hypothécaire. C'est le capital réel du portefeuille exposé au risque sur cet actif.
     """)
