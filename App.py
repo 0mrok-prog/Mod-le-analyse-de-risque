@@ -3,6 +3,26 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import io
+import yfinance as yf 
+
+# --- MOTEUR BOURSIER EN TEMPS RÉEL (YAHOO FINANCE) ---
+@st.cache_data(ttl=86400)  # Met en cache pour 24h
+def get_real_index_cagr(ticker="XRE.TO", annees_historique=5):
+    try:
+        # Télécharge l'historique de l'indice (la fonction history ajuste automatiquement pour les dividendes)
+        historique = yf.Ticker(ticker).history(period=f"{annees_historique}y")
+        
+        if historique.empty:
+            return 0.08  # Rendement par défaut de 8% si l'API échoue
+            
+        prix_initial = historique['Close'].iloc[0]
+        prix_final = historique['Close'].iloc[-1]
+        
+        # Formule du Taux de Croissance Annuel Composé (TCAC)
+        tcac = (prix_final / prix_initial) ** (1 / annees_historique) - 1
+        return tcac
+    except Exception:
+        return 0.08  # Sécurité en cas d'erreur de connexion
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Tableau de Bord Stratégique FO", layout="wide", page_icon="🏢")
