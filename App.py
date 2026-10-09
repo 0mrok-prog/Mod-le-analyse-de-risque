@@ -101,10 +101,6 @@ except Exception as e:
     st.error(f"Erreur de lecture du fichier. Assurez-vous d'utiliser le gabarit fourni. Erreur technique : {e}")
     st.stop()
 
-# --- INITIALISATION DE LA MÉMOIRE DE SESSION ---
-if 'cible_id' not in st.session_state:
-    st.session_state.cible_id = df['ID'].iloc[0]
-
 # ==========================================
 # CRÉATION DES 4 ONGLETS
 # ==========================================
@@ -133,13 +129,8 @@ with tab1:
     
     if not alertes.empty:
         for _, row in alertes.iterrows():
-            col_alerte, col_bouton = st.columns([4, 1])
-            with col_alerte:
-                st.error(f"**{row['ID']}** - RCSD: {row['RCSD']:.2f} | ROE: {row['ROE']*100:.2f}% | Équité bloquée : {row['Equite_Nette']:,.0f} $")
-            with col_bouton:
-                if st.button("⚖️ Simuler la vente", key=f"btn_{row['ID']}"):
-                    st.session_state.cible_id = row['ID']
-                    st.success("Sélectionné ! Ouvrez l'Onglet 2.")
+            st.error(f"**{row['ID']}** - RCSD: {row['RCSD']:.2f} | ROE: {row['ROE']*100:.2f}% | Équité bloquée : {row['Equite_Nette']:,.0f} $\n\n"
+                     f"*L'immeuble détruit de l'opportunité. Considérez une analyse dans l'Outil de Décision.*")
     else:
         st.success("✅ Aucun actif en sous-performance critique détecté.")
 
@@ -153,16 +144,7 @@ with tab2:
     with col_params:
         st.subheader("Paramètres de Scénario")
         
-        # Liaison de la liste déroulante avec la mémoire de session (st.session_state)
-        liste_ids = df['ID'].tolist()
-        try:
-            default_idx = liste_ids.index(st.session_state.cible_id)
-        except ValueError:
-            default_idx = 0
-            
-        immeuble_choisi = st.selectbox("Sélectionnez un immeuble à analyser :", liste_ids, index=default_idx)
-        st.session_state.cible_id = immeuble_choisi
-        
+        immeuble_choisi = st.selectbox("Sélectionnez un immeuble à analyser :", df['ID'].tolist())
         actif = df[df['ID'] == immeuble_choisi].iloc[0]
         
         horizon = st.slider("Horizon Temporel (Années)", min_value=1, max_value=20, value=5)
@@ -248,6 +230,25 @@ with tab2:
         
         fig.update_layout(barmode='stack', hovermode="y unified")
         st.plotly_chart(fig, use_container_width=True)
+        
+        # --- DONNÉES DE L'IMMEUBLE ANALYSÉ (LA RADIOGRAPHIE) ---
+        st.markdown("---")
+        st.subheader(f"📊 Profil actuel de l'immeuble : {immeuble_choisi}")
+        
+        # Couleur du statut
+        couleur_statut = "🔴" if actif['Statut'] == 'Alerte (Sous-Performance)' else "🟢" if actif['Statut'] == 'Performant (Core)' else "🟡"
+        
+        col_met1, col_met2, col_met3, col_met4 = st.columns(4)
+        col_met1.metric("Valeur Marchande", f"{actif['Valeur_Marchande']:,.0f} $")
+        col_met2.metric("Dette Hypothécaire", f"{actif['Dette']:,.0f} $")
+        col_met3.metric("Équité Nette", f"{actif['Equite_Nette']:,.0f} $")
+        col_met4.markdown(f"**Statut**<br>{couleur_statut} {actif['Statut']}", unsafe_allow_html=True)
+        
+        col_met5, col_met6, col_met7, col_met8 = st.columns(4)
+        col_met5.metric("Revenu Net (RNE)", f"{actif['RNE']:,.0f} $")
+        col_met6.metric("Service de la Dette", f"{actif['Service_Dette']:,.0f} $")
+        col_met7.metric("RCSD", f"{actif['RCSD']:.2f}")
+        col_met8.metric("ROE Actuel", f"{actif['ROE']*100:.2f} %")
 
     # --- CONCLUSION CLAIRE ---
     st.divider()
@@ -263,7 +264,7 @@ with tab2:
         st.error(f"⚠️ **Interprétation :** En choisissant de ne rien faire, vous perdez mathématiquement **{cout_inaction:,.0f} $** en création de richesse sur {horizon} ans. Le marché est beaucoup plus performant que l'exploitation de cet immeuble, même après avoir payé {frais_sortie*100}% d'impôts et frais à la revente.")
     else:
         col_res3.metric(f"Avantage de Conserver", f"+ {abs(cout_inaction):,.0f} $", delta="L'immeuble est le meilleur choix", delta_color="normal")
-        st.success(f"✅ **Interprétation :** Vendre cet immeuble serait une erreur. À cause du coût élevé de sortie (impôts) et de sa bonne performance interne, le conserver vous rapporte **{abs(cout_inaction):,.0f} $** de plus que de le transférer en bourse.")
+        st.success(f"✅ **Interprétation :** Vendre cet immeuble serait une erreur. À cause du coût élevé de sortie (impôts) et de sa performance (RNE + Prise de valeur), le conserver vous rapporte **{abs(cout_inaction):,.0f} $** de plus que de le transférer ailleurs.")
 
 # --- ONGLET 3 : MATRICE IMMOBILIÈRE DÉTAILLÉE ---
 with tab3:
