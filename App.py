@@ -256,8 +256,8 @@ with tab2:
     
     st.subheader(f"Le Bilan dans {horizon} ans")
     col_res1, col_res2, col_res3 = st.columns(3)
-    col_res1.metric(f"Richesse si on CONSERVE", f"{richesse_totale_inaction:,.0f} $")
-    col_res2.metric(f"Richesse si on VEND", f"{richesse_totale_action:,.0f} $")
+    col_res1.metric(f"Capital si on CONSERVE", f"{richesse_totale_inaction:,.0f} $")
+    col_res2.metric(f"Capital si on VEND", f"{richesse_totale_action:,.0f} $")
     
     if cout_inaction > 0:
         col_res3.metric(f"Perte d'Opportunité", f"- {cout_inaction:,.0f} $", delta="Vous laissez de l'argent sur la table", delta_color="inverse")
