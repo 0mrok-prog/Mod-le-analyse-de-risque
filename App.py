@@ -154,8 +154,8 @@ with tab1:
 
 # --- ONGLET 2 : OUTIL DE DÉCISION (COÛT DE L'INACTION) ---
 with tab2:
-    st.header("Évaluation du coût de l'inaction (Avec Prise de Valeur)")
-    st.write("Évaluez si la spéculation (prise de valeur estimée) justifie de conserver un actif sous-performant en trésorerie.")
+    st.header("L'Outil de Décision : Bilan à terme")
+    st.write("Ce module compare concrètement ce qu'il vous restera dans les poches à la fin de l'horizon choisi selon deux stratégies.")
     
     col_params, col_graph = st.columns([1, 2])
     
@@ -167,47 +167,29 @@ with tab2:
         horizon = st.slider("Horizon Temporel (Années)", min_value=1, max_value=20, value=5)
         
         st.markdown("---")
-        st.markdown("**1. Choix du Benchmark (L'Indice de Comparaison)**")
+        st.markdown("**1. Choix du Benchmark (L'Indice)**")
         
-        # Calcul de l'Indice Interne (Moyenne du ROE des actifs 'Performants')
         actifs_performants = df[df['Statut'] == 'Performant (Core)']
-        if not actifs_performants.empty:
-            roe_interne_moyen = actifs_performants['ROE'].mean()
-        else:
-            roe_interne_moyen = RENDEMENT_FPI_CIBLE_DEFAUT # Par défaut si aucun immeuble n'est performant
+        roe_interne_moyen = actifs_performants['ROE'].mean() if not actifs_performants.empty else RENDEMENT_FPI_CIBLE_DEFAUT
         
-        # Sélection de la stratégie par l'utilisateur
         strategie_cible = st.radio(
             "Stratégie de Réallocation :",
             ["Marché Externe (Indice en Direct)", "Force Interne (Top Performers du Portefeuille)", "Fonds Custom (Saisie manuelle)"]
         )
         
-        # Ajustement du rendement cible et du nom de la légende selon la sélection
         if strategie_cible == "Marché Externe (Indice en Direct)":
-            ticker_choisi = st.selectbox(
-                "Choix de l'Indice de Marché Externe :",
-                ["XRE.TO (Immobilier Canadien FPI)", "VFV.TO (S&P 500 en CAD)", "XIU.TO (Bourse Canadienne TSX 60)"]
-            )
+            ticker_choisi = st.selectbox("Indice :", ["XRE.TO (FPI)", "VFV.TO (S&P 500)", "XIU.TO (TSX 60)"])
             symbole = ticker_choisi.split(" ")[0]
             rendement_reel_externe = get_real_index_cagr(ticker=symbole, annees_historique=5)
-            
-            st.info(f"📈 Le rendement historique composé sur 5 ans de **{symbole}** est de **{rendement_reel_externe*100:.2f} %** (Dividendes inclus).")
-            rendement_cible = st.number_input("Rendement Cible Externe (%)", value=rendement_reel_externe*100, step=0.5) / 100
-            nom_legende_action = "Réallocation (Indice Externe)"
-            
+            rendement_cible = st.number_input("Rendement Cible (%)", value=rendement_reel_externe*100, step=0.5) / 100
+            nom_action = f"Vente et Bourse ({symbole})"
         elif strategie_cible == "Force Interne (Top Performers du Portefeuille)":
-            if not actifs_performants.empty:
-                st.info(f"💡 Le ROE moyen actuel de vos immeubles 'Performants' est de **{roe_interne_moyen*100:.2f} %**.")
-            else:
-                st.warning("Aucun immeuble n'est classé 'Performant'. Utilisation du taux externe par défaut.")
             rendement_cible = roe_interne_moyen
-            nom_legende_action = "Réallocation (Indice Interne)"
-            
+            nom_action = "Vente et Réinvestissement (Interne)"
         else:
-            # L'option Fonds Custom permet à l'utilisateur de définir son propre produit alternatif
-            nom_fonds_custom = st.text_input("Nom du fonds / investissement alternatif :", value="Fonds Privé XYZ")
-            rendement_cible = st.number_input("Rendement historique annuel composé (%) :", value=10.0, step=0.5) / 100
-            nom_legende_action = f"Réallocation ({nom_fonds_custom})"
+            nom_fonds_custom = st.text_input("Nom du fonds :", value="Fonds Privé XYZ")
+            rendement_cible = st.number_input("Rendement historique (%) :", value=10.0, step=0.5) / 100
+            nom_action = f"Vente et {nom_fonds_custom}"
             
         st.markdown("---")
         st.markdown("**2. Hypothèses de Marché**")
@@ -215,54 +197,69 @@ with tab2:
         frais_sortie = st.slider("Frottement Fiscal / Frais de Vente (%)", min_value=0.0, max_value=30.0, value=15.0, step=1.0) / 100
         
     with col_graph:
-        # Variables de base
-        valeur_actuelle = actif['Valeur_Marchande']
-        dette_actuelle = actif['Dette']
+        # --- CALCULS CLARIFIÉS POUR L'ANNÉE FINALE ---
         equite_initiale = actif['Equite_Nette']
         cash_flow_annuel = actif['RNE'] - actif['Service_Dette']
         
-        annees = np.arange(0, horizon + 1)
+        # Stratégie 1 : Conserver (Statu Quo)
+        valeur_future_immeuble = actif['Valeur_Marchande'] * ((1 + appreciation_annuelle) ** horizon)
+        equite_future = valeur_future_immeuble - actif['Dette']
+        gain_capital_immo = equite_future - equite_initiale
+        cash_flow_cumule = cash_flow_annuel * horizon
+        richesse_totale_inaction = equite_initiale + gain_capital_immo + cash_flow_cumule
         
-        # Trajectoire 1 : Statu Quo (Inaction) avec Prise de valeur
-        valeur_future_immeuble = valeur_actuelle * ((1 + appreciation_annuelle) ** annees)
-        equite_future = valeur_future_immeuble - dette_actuelle
-        val_inaction = equite_future + (cash_flow_annuel * annees)
-        
-        # Trajectoire 2 : Vente immédiate et Réallocation (Action) selon le Benchmark choisi
+        # Stratégie 2 : Vendre et Réallouer (Action)
         capital_net_reinvesti = equite_initiale * (1 - frais_sortie)
-        val_action = capital_net_reinvesti * ((1 + rendement_cible) ** annees)
+        richesse_totale_action = capital_net_reinvesti * ((1 + rendement_cible) ** horizon)
+        rendement_marche_cumule = richesse_totale_action - capital_net_reinvesti
         
-        # Graphique Plotly
-        fig_df = pd.DataFrame({
-            'Année': annees, 
-            'Statu Quo (Immeuble conservé)': val_inaction, 
-            nom_legende_action: val_action
+        # --- GRAPHIQUE À BARRES EMPILÉES ---
+        df_bar = pd.DataFrame({
+            "Stratégie": [
+                "1. Conserver (Statu Quo)", "1. Conserver (Statu Quo)", "1. Conserver (Statu Quo)",
+                f"2. {nom_action}", f"2. {nom_action}"
+            ],
+            "Composante": [
+                "Équité de base", "Prise de Valeur Immo", "Cash-Flow Net (Cumulé)",
+                "Capital investi (Après impôts)", "Rendements Composés de l'Indice"
+            ],
+            "Montant ($)": [
+                equite_initiale, gain_capital_immo, cash_flow_cumule,
+                capital_net_reinvesti, rendement_marche_cumule
+            ]
         })
         
-        fig = px.line(fig_df, x='Année', y=['Statu Quo (Immeuble conservé)', nom_legende_action],
-                      labels={'value': 'Richesse Nette Totale ($)', 'variable': 'Stratégie'},
-                      title=f"Projection de Richesse sur {horizon} ans - {immeuble_choisi}")
+        # Couleurs spécifiques pour bien comprendre d'où vient l'argent
+        couleurs = {
+            "Équité de base": "#1f77b4", 
+            "Prise de Valeur Immo": "#aec7e8", 
+            "Cash-Flow Net (Cumulé)": "#ffbb78",
+            "Capital investi (Après impôts)": "#2ca02c", 
+            "Rendements Composés de l'Indice": "#98df8a"
+        }
         
-        fig.update_layout(hovermode="x unified", legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
+        fig = px.bar(df_bar, x="Stratégie", y="Montant ($)", color="Composante",
+                     title=f"D'où proviendra votre richesse dans {horizon} ans ?",
+                     color_discrete_map=couleurs, text_auto='.2s')
+        
+        fig.update_layout(barmode='stack', hovermode="y unified")
         st.plotly_chart(fig, use_container_width=True)
 
-    # Conclusion du modèle
+    # --- CONCLUSION CLAIRE ---
     st.divider()
-    cout_inaction = val_action[-1] - val_inaction[-1]
+    cout_inaction = richesse_totale_action - richesse_totale_inaction
     
+    st.subheader(f"Le Bilan dans {horizon} ans")
     col_res1, col_res2, col_res3 = st.columns(3)
-    col_res1.metric(f"Valeur finale (Immeuble)", f"{val_inaction[-1]:,.0f} $")
-    col_res2.metric(f"Valeur finale (Réallocation)", f"{val_action[-1]:,.0f} $")
-    
-    # Inversion de la couleur : Un coût de l'inaction positif (différentiel marché > immeuble) s'affiche en rouge
-    col_res3.metric(f"Différentiel (Coût de l'Inaction)", f"{cout_inaction:,.0f} $", 
-                    delta=f"{-cout_inaction:,.0f} $", delta_color="normal")
+    col_res1.metric(f"Richesse si on CONSERVE", f"{richesse_totale_inaction:,.0f} $")
+    col_res2.metric(f"Richesse si on VEND", f"{richesse_totale_action:,.0f} $")
     
     if cout_inaction > 0:
-        st.warning(f"⚠️ **Vente Stratégique Recommandée :** Même avec une prise de valeur projetée de {appreciation_annuelle*100}%, le benchmark choisi surperforme l'immeuble de **{cout_inaction:,.0f} $** sur {horizon} ans après impôts. L'actif détruit de l'opportunité.")
+        col_res3.metric(f"Perte d'Opportunité", f"- {cout_inaction:,.0f} $", delta="Vous laissez de l'argent sur la table", delta_color="inverse")
+        st.error(f"⚠️ **Interprétation :** En choisissant de ne rien faire, vous perdez mathématiquement **{cout_inaction:,.0f} $** en création de richesse sur {horizon} ans. Le marché est beaucoup plus performant que l'exploitation de cet immeuble, même après avoir payé {frais_sortie*100}% d'impôts et frais à la revente.")
     else:
-        st.success(f"✅ **Conservation Recommandée :** Grâce à la prise de valeur projetée de {appreciation_annuelle*100}% et au coût élevé du frottement fiscal de sortie, conserver l'immeuble génère **{abs(cout_inaction):,.0f} $** de plus que le benchmark sur {horizon} ans.")
-
+        col_res3.metric(f"Avantage de Conserver", f"+ {abs(cout_inaction):,.0f} $", delta="L'immeuble est le meilleur choix", delta_color="normal")
+        st.success(f"✅ **Interprétation :** Vendre cet immeuble serait une erreur. À cause du coût élevé de sortie (impôts) et de sa bonne performance interne, le conserver vous rapporte **{abs(cout_inaction):,.0f} $** de plus que de le transférer en bourse.")
 # --- ONGLET 3 : MATRICE IMMOBILIÈRE DÉTAILLÉE ---
 with tab3:
     st.header("Base de données du portefeuille")
