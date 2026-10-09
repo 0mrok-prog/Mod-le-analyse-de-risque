@@ -276,14 +276,14 @@ with tab3:
     # 2. Utilisation du nom de l'immeuble comme nom de ligne (enlève les numéros)
     df_matrice.set_index('ID', inplace=True)
     
-    # 3. Remplacement par des indicateurs visuels natifs (émojis) pour un rendu parfait
+    # 3. Remplacement par des émojis universels compatibles à 100%
     df_matrice['Statut'] = df_matrice['Statut'].replace({
-        'Alerte (Sous-Performance)': '🔴 Alerte',
-        'Sous-Observation': '🟡 Sous-Observation',
-        'Performant (Core)': '🟢 Performant'
+        'Alerte (Sous-Performance)': '🚨 Alerte',
+        'Sous-Observation': '⚠️ Sous-Observation',
+        'Performant (Core)': '✅ Performant'
     })
     
-    # 4. Formatage des chiffres
+    # 4. Formatage des chiffres et coloration CSS robuste
     styled_df = df_matrice.style.format({
         'Valeur_Marchande': "{:,.0f} $",
         'Dette': "{:,.0f} $",
@@ -291,7 +291,7 @@ with tab3:
         'Service_Dette': "{:,.0f} $",
         'RCSD': "{:.2f}",
         'ROE': "{:.2%}"
-    })
+    }).map(lambda x: 'color: #ff4b4b; font-weight: bold' if 'Alerte' in str(x) else ('color: #09ab3b; font-weight: bold' if 'Performant' in str(x) else 'color: #d4a017'), subset=['Statut'])
     
     # Affichage du tableau
     st.dataframe(styled_df, use_container_width=True, height=500)
