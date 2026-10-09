@@ -176,34 +176,38 @@ with tab2:
         else:
             roe_interne_moyen = RENDEMENT_FPI_CIBLE_DEFAUT # Par défaut si aucun immeuble n'est performant
         
-        # Menu déroulant pour choisir l'indice de marché réel
-        ticker_choisi = st.selectbox(
-            "Choix de l'Indice de Marché Externe :",
-            [
-                "XRE.TO (Immobilier Canadien FPI)", 
-                "VFV.TO (S&P 500 en CAD)", 
-                "XIU.TO (Bourse Canadienne TSX 60)"
-            ]
-        )
-        symbole = ticker_choisi.split(" ")[0]
-        rendement_reel_externe = get_real_index_cagr(ticker=symbole, annees_historique=5)
-        
         # Sélection de la stratégie par l'utilisateur
         strategie_cible = st.radio(
             "Stratégie de Réallocation :",
-            ["Marché Externe (Indice en Direct)", "Force Interne (Top Performers du Portefeuille)"]
+            ["Marché Externe (Indice en Direct)", "Force Interne (Top Performers du Portefeuille)", "Fonds Custom (Saisie manuelle)"]
         )
         
-        # Ajustement du rendement cible selon la sélection
+        # Ajustement du rendement cible et du nom de la légende selon la sélection
         if strategie_cible == "Marché Externe (Indice en Direct)":
+            ticker_choisi = st.selectbox(
+                "Choix de l'Indice de Marché Externe :",
+                ["XRE.TO (Immobilier Canadien FPI)", "VFV.TO (S&P 500 en CAD)", "XIU.TO (Bourse Canadienne TSX 60)"]
+            )
+            symbole = ticker_choisi.split(" ")[0]
+            rendement_reel_externe = get_real_index_cagr(ticker=symbole, annees_historique=5)
+            
             st.info(f"📈 Le rendement historique composé sur 5 ans de **{symbole}** est de **{rendement_reel_externe*100:.2f} %** (Dividendes inclus).")
             rendement_cible = st.number_input("Rendement Cible Externe (%)", value=rendement_reel_externe*100, step=0.5) / 100
-        else:
+            nom_legende_action = "Réallocation (Indice Externe)"
+            
+        elif strategie_cible == "Force Interne (Top Performers du Portefeuille)":
             if not actifs_performants.empty:
                 st.info(f"💡 Le ROE moyen actuel de vos immeubles 'Performants' est de **{roe_interne_moyen*100:.2f} %**.")
             else:
                 st.warning("Aucun immeuble n'est classé 'Performant'. Utilisation du taux externe par défaut.")
             rendement_cible = roe_interne_moyen
+            nom_legende_action = "Réallocation (Indice Interne)"
+            
+        else:
+            # L'option Fonds Custom permet à l'utilisateur de définir son propre produit alternatif
+            nom_fonds_custom = st.text_input("Nom du fonds / investissement alternatif :", value="Fonds Privé XYZ")
+            rendement_cible = st.number_input("Rendement historique annuel composé (%) :", value=10.0, step=0.5) / 100
+            nom_legende_action = f"Réallocation ({nom_fonds_custom})"
             
         st.markdown("---")
         st.markdown("**2. Hypothèses de Marché**")
@@ -229,8 +233,6 @@ with tab2:
         val_action = capital_net_reinvesti * ((1 + rendement_cible) ** annees)
         
         # Graphique Plotly
-        nom_legende_action = "Réallocation (Indice Externe)" if strategie_cible == "Marché Externe (Indice en Direct)" else "Réallocation (Indice Interne)"
-        
         fig_df = pd.DataFrame({
             'Année': annees, 
             'Statu Quo (Immeuble conservé)': val_inaction, 
@@ -257,7 +259,7 @@ with tab2:
                     delta=f"{-cout_inaction:,.0f} $", delta_color="normal")
     
     if cout_inaction > 0:
-        st.warning(f"⚠️ **Vente Stratégique Recommandée :** Même avec une prise de valeur projetée de {appreciation_annuelle*100}%, le benchmark choisi ({strategie_cible}) surperforme l'immeuble de **{cout_inaction:,.0f} $** sur {horizon} ans après impôts. L'actif détruit de l'opportunité.")
+        st.warning(f"⚠️ **Vente Stratégique Recommandée :** Même avec une prise de valeur projetée de {appreciation_annuelle*100}%, le benchmark choisi surperforme l'immeuble de **{cout_inaction:,.0f} $** sur {horizon} ans après impôts. L'actif détruit de l'opportunité.")
     else:
         st.success(f"✅ **Conservation Recommandée :** Grâce à la prise de valeur projetée de {appreciation_annuelle*100}% et au coût élevé du frottement fiscal de sortie, conserver l'immeuble génère **{abs(cout_inaction):,.0f} $** de plus que le benchmark sur {horizon} ans.")
 
