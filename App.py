@@ -298,7 +298,7 @@ with tab3:
     
 # --- ONGLET 4 : GLOSSAIRE & TERMINOLOGIE ---
 with tab4:
-    st.header("Glossaire des thèmes institutionnels")
+    st.header("Glossaire des fonctions et termes")
     
     st.markdown("""
     *   **Prêt "Intérêts Seuls" (Interest Only) :** Pour simuler un financement sans remboursement de capital, 
