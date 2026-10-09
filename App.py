@@ -301,9 +301,14 @@ with tab4:
     st.header("Glossaire des thèmes institutionnels")
     
     st.markdown("""
-    *   **RCSD (Ratio de Couverture du Service de la Dette) :** *Formule : Revenu Net d'Exploitation / Paiements de dette (Capital + Intérêts).* Indique la capacité d'un immeuble à payer son hypothèque. Un ratio sous 1.0 signifie que l'immeuble nécessite une injection de liquidités.
+    *   **Prêt "Intérêts Seuls" (Interest Only) :** Pour simuler un financement sans remboursement de capital, 
+    inscrivez simplement **0** dans la colonne *Amortissement_Annees* de votre fichier d'importation. L'outil ajustera automatiquement ses calculs.
+    *   **RCSD (Ratio de Couverture du Service de la Dette) :** *Formule : Revenu Net d'Exploitation / Paiements de dette.* Indique la capacité d'un immeuble à payer son hypothèque. Un ratio sous 1.0 signifie que l'immeuble nécessite une injection de liquidités.
     *   **ROE (Return on Equity - Rendement sur l'Équité) :** *Formule : Flux de trésorerie net annuel / Équité Nette.* Mesure l'efficacité du capital "bloqué" dans la propriété.
-    *   **Coût de l'Inaction :** La différence financière entre maintenir le statu quo sur un actif sous-performant et réallouer ce capital net vers un indice de marché (Benchmark), calculée sur un horizon donné.
-    *   **Frottement Fiscal (Récupération d'amortissement) :** L'impôt payable à la vente d'un immeuble en raison des déductions pour amortissement (DPA) réclamées les années antérieures. Cet impôt réduit le produit net de la vente disponible pour réinvestissement.
-    *   **Équité Nette (Équité Dormante) :** La valeur marchande actuelle de l'immeuble moins le solde hypothécaire. C'est le capital réel du portefeuille exposé au risque sur cet actif.
+    *   **Coût de l'Inaction :** La différence financière entre maintenir le statu quo sur un actif sous-performant et 
+    réallouer ce capital net vers un indice de marché (Benchmark), calculée sur un horizon donné.
+    *   **Frottement Fiscal (Récupération d'amortissement) :** L'impôt payable à la vente d'un immeuble en raison des déductions pour amortissement 
+    (DPA) réclamées les années antérieures. Cet impôt réduit le produit net de la vente disponible pour réinvestissement.
+    *   **Équité Nette (Équité Dormante) :** La valeur marchande actuelle de l'immeuble moins le solde hypothécaire.
+    C'est le capital réel du portefeuille exposé au risque sur cet actif.
     """)
