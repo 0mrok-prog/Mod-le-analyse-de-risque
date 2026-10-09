@@ -196,7 +196,7 @@ with tab2:
 with tab3:
     st.header("Base de données du portefeuille")
     
-    # Formatage du tableau pour Streamlit
+    # Formatage du tableau pour Streamlit (correction de applymap vers map)
     styled_df = df[['ID', 'Valeur_Marchande', 'Dette', 'Equite_Nette', 'Service_Dette', 'RCSD', 'ROE', 'Statut']].style.format({
         'Valeur_Marchande': "{:,.0f} $",
         'Dette': "{:,.0f} $",
@@ -204,10 +204,10 @@ with tab3:
         'Service_Dette': "{:,.0f} $",
         'RCSD': "{:.2f}",
         'ROE': "{:.2%}"
-    }).applymap(lambda x: 'color: #ff4b4b; font-weight: bold' if x == 'Alerte (Sous-Performance)' else ('color: #09ab3b' if x == 'Performant (Core)' else ''), subset=['Statut'])
+    }).map(lambda x: 'color: #ff4b4b; font-weight: bold' if x == 'Alerte (Sous-Performance)' else ('color: #09ab3b' if x == 'Performant (Core)' else ''), subset=['Statut'])
     
     st.dataframe(styled_df, use_container_width=True, height=500)
-
+    
 # --- ONGLET 4 : GLOSSAIRE & TERMINOLOGIE ---
 with tab4:
     st.header("Glossaire des thèmes institutionnels")
