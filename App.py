@@ -270,15 +270,30 @@ with tab2:
 with tab3:
     st.header("Base de données du portefeuille")
     
-    styled_df = df[['ID', 'Valeur_Marchande', 'Dette', 'Equite_Nette', 'Service_Dette', 'RCSD', 'ROE', 'Statut']].style.format({
+    # 1. Copie des colonnes pour l'affichage
+    df_matrice = df[['ID', 'Valeur_Marchande', 'Dette', 'Equite_Nette', 'Service_Dette', 'RCSD', 'ROE', 'Statut']].copy()
+    
+    # 2. Utilisation du nom de l'immeuble comme nom de ligne (enlève les numéros)
+    df_matrice.set_index('ID', inplace=True)
+    
+    # 3. Remplacement par des indicateurs visuels natifs (émojis) pour un rendu parfait
+    df_matrice['Statut'] = df_matrice['Statut'].replace({
+        'Alerte (Sous-Performance)': '🔴 Alerte',
+        'Sous-Observation': '🟡 Sous-Observation',
+        'Performant (Core)': '🟢 Performant'
+    })
+    
+    # 4. Formatage des chiffres
+    styled_df = df_matrice.style.format({
         'Valeur_Marchande': "{:,.0f} $",
         'Dette': "{:,.0f} $",
         'Equite_Nette': "{:,.0f} $",
         'Service_Dette': "{:,.0f} $",
         'RCSD': "{:.2f}",
         'ROE': "{:.2%}"
-    }).map(lambda x: 'color: #ff4b4b; font-weight: bold' if x == 'Alerte (Sous-Performance)' else ('color: #09ab3b' if x == 'Performant (Core)' else ''), subset=['Statut'])
+    })
     
+    # Affichage du tableau
     st.dataframe(styled_df, use_container_width=True, height=500)
     
 # --- ONGLET 4 : GLOSSAIRE & TERMINOLOGIE ---
