@@ -16,16 +16,13 @@ RENDEMENT_FPI_CIBLE_DEFAUT = 0.08  # 8.00% par défaut si l'API boursière écho
 @st.cache_data(ttl=86400)  # Met en cache pour 24h
 def get_real_index_cagr(ticker="XRE.TO", annees_historique=5):
     try:
-        # Télécharge l'historique de l'indice
         historique = yf.Ticker(ticker).history(period=f"{annees_historique}y")
-        
         if historique.empty:
             return RENDEMENT_FPI_CIBLE_DEFAUT
             
         prix_initial = historique['Close'].iloc[0]
         prix_final = historique['Close'].iloc[-1]
         
-        # Formule du Taux de Croissance Annuel Composé (TCAC)
         tcac = (prix_final / prix_initial) ** (1 / annees_historique) - 1
         return tcac
     except Exception:
@@ -34,7 +31,6 @@ def get_real_index_cagr(ticker="XRE.TO", annees_historique=5):
 # --- GÉNÉRATEUR DE GABARIT (TEMPLATE) ---
 @st.cache_data
 def get_template_csv():
-    # Génère un fichier CSV modèle directement depuis le code
     df_template = pd.DataFrame({
         'ID': ['Immeuble Alpha (MTL)', 'Immeuble Beta (QC)', 'Tour Gamma (IO)'],
         'Valeur_Marchande': [10000000, 12500000, 15000000],
@@ -48,33 +44,24 @@ def get_template_csv():
 # --- TRAITEMENT DES DONNÉES EN MÉMOIRE ---
 @st.cache_data
 def process_data(file, filename):
-    # Lecture dynamique selon le type de fichier
     if filename.endswith('.csv'):
         data = pd.read_csv(file)
     else:
         data = pd.read_excel(file)
         
-    # --- 1. MOTEUR DE CALCUL DU SERVICE DE LA DETTE ---
     r = data['Taux_Interet'] / 12
     n = data['Amortissement_Annees'] * 12
     
-    # Prêts amortis (si Amortissement > 0)
-    # Remplacement des valeurs infinies/NaN par 0 temporairement pour le calcul vectorisé
     r_safe = np.where(r == 0, 1e-10, r) 
     paiement_annuel_amorti = (data['Dette'] * (r_safe / (1 - (1 + r_safe)**(-n)))) * 12
-    
-    # Prêts "Interest Only" (intérêts seuls, si Amortissement = 0)
     paiement_interets_seuls = data['Dette'] * data['Taux_Interet']
     
-    # Application de la bonne formule
     data['Service_Dette'] = np.where(data['Amortissement_Annees'] > 0, paiement_annuel_amorti, paiement_interets_seuls)
     
-    # --- 2. CALCULS DES MÉTRIQUES DE PERFORMANCE ---
     data['Equite_Nette'] = data['Valeur_Marchande'] - data['Dette']
     data['RCSD'] = data['RNE'] / data['Service_Dette']
     data['ROE'] = (data['RNE'] - data['Service_Dette']) / data['Equite_Nette']
     
-    # --- 3. TRIGGERS (DÉFINITION DU STATUT) ---
     conditions = [
         (data['RCSD'] < 1.0) | (data['ROE'] < TAUX_SANS_RISQUE),
         (data['RCSD'] >= 1.0) & (data['RCSD'] <= 1.25) & (data['ROE'] >= TAUX_SANS_RISQUE),
@@ -88,12 +75,11 @@ def process_data(file, filename):
 # ==========================================
 # INTERFACE UTILISATEUR & BARRE LATÉRALE
 # ==========================================
-st.title(" Tableau de Bord - Immobilier & Allocation")
+st.title("🏛️ Tableau de Bord - Immobilier & Allocation")
 
 st.sidebar.header("📁 Injecter vos données")
 st.sidebar.markdown("*Mode Confidentiel : Les données sont traitées dans la RAM de votre navigateur et détruites à la fermeture.*")
 
-# Bouton de téléchargement du gabarit
 st.sidebar.download_button(
     label="📥 Télécharger le Gabarit à remplir (CSV)",
     data=get_template_csv(),
@@ -103,20 +89,21 @@ st.sidebar.download_button(
 
 st.sidebar.markdown("---")
 
-# Zone de dépôt du fichier
 fichier_utilisateur = st.sidebar.file_uploader("Importez votre fichier complété (.xlsx ou .csv)", type=['xlsx', 'csv'])
 
-# Vérification de la présence du fichier
 if fichier_utilisateur is None:
-    st.info("👋 Bienvenue sur le Tableau de Bord du Family Office.\n\n**Veuillez téléverser votre fichier d'actifs immobiliers dans la barre latérale pour générer les analyses.** Si vous n'avez pas de fichier, téléchargez le gabarit ci-contre.")
-    st.stop()  # Arrête l'exécution ici si aucun fichier n'est chargé
+    st.info("👋 Bienvenue sur le Tableau de Bord du Family Office.\n\n**Veuillez téléverser votre fichier d'actifs immobiliers dans la barre latérale pour générer les analyses.**")
+    st.stop()
 
-# Si le fichier est présent, on lance les calculs
 try:
     df = process_data(fichier_utilisateur, fichier_utilisateur.name)
 except Exception as e:
     st.error(f"Erreur de lecture du fichier. Assurez-vous d'utiliser le gabarit fourni. Erreur technique : {e}")
     st.stop()
+
+# --- INITIALISATION DE LA MÉMOIRE DE SESSION ---
+if 'cible_id' not in st.session_state:
+    st.session_state.cible_id = df['ID'].iloc[0]
 
 # ==========================================
 # CRÉATION DES 4 ONGLETS
@@ -134,7 +121,6 @@ with tab1:
     col1, col2, col3 = st.columns(3)
     col1.metric("Taux Sans Risque (Cible)", f"{TAUX_SANS_RISQUE*100:.2f} %")
     
-    # Appel de l'API pour afficher le rendement de l'indice immobilier en temps réel
     rendement_actuel_fpi = get_real_index_cagr("XRE.TO", 5)
     col2.metric("Indice Immo Cible (XRE.TO - 5 ans)", f"{rendement_actuel_fpi*100:.2f} %")
     
@@ -147,8 +133,13 @@ with tab1:
     
     if not alertes.empty:
         for _, row in alertes.iterrows():
-            st.error(f"**{row['ID']}** - RCSD: {row['RCSD']:.2f} | ROE: {row['ROE']*100:.2f}% | Équité bloquée : {row['Equite_Nette']:,.0f} $\n\n"
-                     f"*Alerte : Les métriques de cet immeuble sont inférieures aux taux cibles du marché ou ne couvrent pas la dette.*")
+            col_alerte, col_bouton = st.columns([4, 1])
+            with col_alerte:
+                st.error(f"**{row['ID']}** - RCSD: {row['RCSD']:.2f} | ROE: {row['ROE']*100:.2f}% | Équité bloquée : {row['Equite_Nette']:,.0f} $")
+            with col_bouton:
+                if st.button("⚖️ Simuler la vente", key=f"btn_{row['ID']}"):
+                    st.session_state.cible_id = row['ID']
+                    st.success("Sélectionné ! Ouvrez l'Onglet 2.")
     else:
         st.success("✅ Aucun actif en sous-performance critique détecté.")
 
@@ -161,7 +152,17 @@ with tab2:
     
     with col_params:
         st.subheader("Paramètres de Scénario")
-        immeuble_choisi = st.selectbox("Sélectionnez un immeuble à analyser :", df['ID'])
+        
+        # Liaison de la liste déroulante avec la mémoire de session (st.session_state)
+        liste_ids = df['ID'].tolist()
+        try:
+            default_idx = liste_ids.index(st.session_state.cible_id)
+        except ValueError:
+            default_idx = 0
+            
+        immeuble_choisi = st.selectbox("Sélectionnez un immeuble à analyser :", liste_ids, index=default_idx)
+        st.session_state.cible_id = immeuble_choisi
+        
         actif = df[df['ID'] == immeuble_choisi].iloc[0]
         
         horizon = st.slider("Horizon Temporel (Années)", min_value=1, max_value=20, value=5)
@@ -184,6 +185,10 @@ with tab2:
             rendement_cible = st.number_input("Rendement Cible (%)", value=rendement_reel_externe*100, step=0.5) / 100
             nom_action = f"Vente et Bourse ({symbole})"
         elif strategie_cible == "Force Interne (Top Performers du Portefeuille)":
+            if not actifs_performants.empty:
+                st.info(f"💡 Le ROE moyen de vos immeubles 'Performants' est de **{roe_interne_moyen*100:.2f} %**.")
+            else:
+                st.warning("Aucun immeuble n'est classé 'Performant'.")
             rendement_cible = roe_interne_moyen
             nom_action = "Vente et Réinvestissement (Interne)"
         else:
@@ -229,7 +234,6 @@ with tab2:
             ]
         })
         
-        # Couleurs spécifiques pour bien comprendre d'où vient l'argent
         couleurs = {
             "Équité de base": "#1f77b4", 
             "Prise de Valeur Immo": "#aec7e8", 
@@ -251,8 +255,8 @@ with tab2:
     
     st.subheader(f"Le Bilan dans {horizon} ans")
     col_res1, col_res2, col_res3 = st.columns(3)
-    col_res1.metric(f"Capital disponible si on CONSERVE", f"{richesse_totale_inaction:,.0f} $")
-    col_res2.metric(f"Capital disponible si on VEND", f"{richesse_totale_action:,.0f} $")
+    col_res1.metric(f"Richesse si on CONSERVE", f"{richesse_totale_inaction:,.0f} $")
+    col_res2.metric(f"Richesse si on VEND", f"{richesse_totale_action:,.0f} $")
     
     if cout_inaction > 0:
         col_res3.metric(f"Perte d'Opportunité", f"- {cout_inaction:,.0f} $", delta="Vous laissez de l'argent sur la table", delta_color="inverse")
@@ -265,7 +269,6 @@ with tab2:
 with tab3:
     st.header("Base de données du portefeuille")
     
-    # Formatage du tableau pour Streamlit (correction de applymap vers map)
     styled_df = df[['ID', 'Valeur_Marchande', 'Dette', 'Equite_Nette', 'Service_Dette', 'RCSD', 'ROE', 'Statut']].style.format({
         'Valeur_Marchande': "{:,.0f} $",
         'Dette': "{:,.0f} $",
